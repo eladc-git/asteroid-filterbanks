@@ -20,6 +20,7 @@ def make_enc_dec(
     who_is_pinv=None,
     padding=0,
     output_padding=0,
+    time_samples=None,
     **kwargs,
 ):
     """Creates congruent encoder and decoder from the same filterbank family.
@@ -49,8 +50,12 @@ def make_enc_dec(
     Returns:
         :class:`.Encoder`, :class:`.Decoder`
     """
-    fb_class = get(fb_name)
 
+    decoder_input_shape = None
+    if time_samples:
+        decoder_input_shape = (1,n_filters,time_samples)
+
+    fb_class = get(fb_name)
     if who_is_pinv in ["dec", "decoder"]:
         fb = fb_class(n_filters, kernel_size, stride=stride, sample_rate=sample_rate, **kwargs)
         enc = Encoder(fb, padding=padding)
@@ -58,7 +63,7 @@ def make_enc_dec(
         dec = Decoder.pinv_of(fb)
     elif who_is_pinv in ["enc", "encoder"]:
         fb = fb_class(n_filters, kernel_size, stride=stride, sample_rate=sample_rate, **kwargs)
-        dec = Decoder(fb, padding=padding, output_padding=output_padding)
+        dec = Decoder(fb, decoder_input_shape=decoder_input_shape, padding=padding, output_padding=output_padding)
         # Encoder filterbank is pseudo inverse of decoder filterbank.
         enc = Encoder.pinv_of(fb)
     else:
@@ -66,7 +71,7 @@ def make_enc_dec(
         enc = Encoder(fb, padding=padding)
         # Filters between encoder and decoder should not be shared.
         fb = fb_class(n_filters, kernel_size, stride=stride, sample_rate=sample_rate, **kwargs)
-        dec = Decoder(fb, padding=padding, output_padding=output_padding)
+        dec = Decoder(fb, decoder_input_shape=decoder_input_shape, padding=padding, output_padding=output_padding)
     return enc, dec
 
 

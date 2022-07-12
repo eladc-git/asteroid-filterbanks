@@ -174,13 +174,16 @@ class Encoder(_EncDec):
         """
         filters = self.get_filters()
         waveform = self.filterbank.pre_analysis(waveform)
-        spec = multishape_conv1d(
-            waveform,
-            filters=filters,
-            stride=self.stride,
-            padding=self.padding,
-            as_conv1d=self.as_conv1d,
-        )
+
+        # spec = multishape_conv1d(
+        #     waveform,
+        #     filters=filters,
+        #     stride=self.stride,
+        #     padding=self.padding,
+        #     as_conv1d=self.as_conv1d,
+        # )
+        spec = F.conv1d(waveform, filters, stride=self.stride, padding=self.padding)
+
         return self.filterbank.post_analysis(spec)
 
 
@@ -254,10 +257,11 @@ class Decoder(_EncDec):
         ``F.conv_transpose1d``.
     """
 
-    def __init__(self, filterbank, is_pinv=False, padding=0, output_padding=0):
+    def __init__(self, filterbank, decoder_input_shape, is_pinv=False, padding=0, output_padding=0):
         super().__init__(filterbank, is_pinv=is_pinv)
         self.padding = padding
         self.output_padding = output_padding
+        self.decoder_input_shape = decoder_input_shape
 
     @classmethod
     def pinv_of(cls, filterbank):
@@ -282,13 +286,26 @@ class Decoder(_EncDec):
         """
         filters = self.get_filters()
         spec = self.filterbank.pre_synthesis(spec)
-        wav = multishape_conv_transpose1d(
-            spec,
-            filters,
-            stride=self.stride,
-            padding=self.padding,
-            output_padding=self.output_padding,
-        )
+
+        if self.decoder_input_shape is None:
+            wav = multishape_conv_transpose1d(
+                spec,
+                filters,
+                stride=self.stride,
+                padding=self.padding,
+                output_padding=self.output_padding,
+            )
+        else:
+            spec_reshaped = torch.reshape(spec, self.decoder_input_shape)
+            out = F.conv_transpose1d(
+                spec_reshaped,
+                filters,
+                stride=self.stride,
+                padding=self.padding,
+                output_padding=self.output_padding,
+            )
+            wav = out.view(spec.shape[:-2] + (-1,))
+
         wav = self.filterbank.post_synthesis(wav)
         if length is not None:
             length = min(length, wav.shape[-1])
